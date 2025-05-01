@@ -48,7 +48,7 @@ LRFU::LRFU(const Params &p)
 void
 LRFU::invalidate(const std::shared_ptr<ReplacementData>& replacement_data)
 {
-    // Reset last touch timestamp
+    // Reset last touch timestamp and resetting CRF to be a minimum possible value
     std::static_pointer_cast<LRFUReplData>(replacement_data)->lastCRF = 0;
     std::static_pointer_cast<LRFUReplData>(replacement_data)->lastTouchTick = Tick(0);
 }
@@ -56,7 +56,7 @@ LRFU::invalidate(const std::shared_ptr<ReplacementData>& replacement_data)
 void
 LRFU::touch(const std::shared_ptr<ReplacementData>& replacement_data) const
 {
-    // Update last touch timestamp and CRF 
+    // Update last touch timestamp to now, scale and increment CRF {lambda is chosen as 0.0001 and p is 0.5}
     std::static_pointer_cast<LRFUReplData>(replacement_data)->lastCRF = std::static_pointer_cast<LRFUReplData>(replacement_data)->lastCRF*pow(0.5, 0.0001*float(curTick()-std::static_pointer_cast<LRFUReplData>(replacement_data)->lastTouchTick))+1;
     std::static_pointer_cast<LRFUReplData>(replacement_data)->lastTouchTick = curTick();
 	}
@@ -64,7 +64,7 @@ LRFU::touch(const std::shared_ptr<ReplacementData>& replacement_data) const
 void
 LRFU::reset(const std::shared_ptr<ReplacementData>& replacement_data) const
 {
-    // Set last touch timestamp
+    // Resetting LastTouch tick to current tick and re-initialising CRF to single access
     std::static_pointer_cast<LRFUReplData>(replacement_data)->lastTouchTick = curTick();
     std::static_pointer_cast<LRFUReplData>(replacement_data)->lastCRF = 1;
 }
@@ -75,17 +75,19 @@ LRFU::getVictim(const ReplacementCandidates& candidates) const
     // There must be at least one replacement candidate
     assert(candidates.size() > 0);
 
+   // Gets current time at the start of this function call
    Tick curr_tick = curTick();
 
     // Visit all candidates to find victim
     ReplaceableEntry* victim = candidates[0];
+    // Scales CRF to current time
     std::static_pointer_cast<LRFUReplData>(victim->replacementData)->lastCRF = std::static_pointer_cast<LRFUReplData>(victim->replacementData)->lastCRF*pow(0.5, 0.0001*float(curr_tick-std::static_pointer_cast<LRFUReplData>(victim->replacementData)->lastTouchTick));
   
   for (const auto& candidate : candidates) {
+        // Scales CRF to current time
     	std::static_pointer_cast<LRFUReplData>(candidate->replacementData)->lastCRF = std::static_pointer_cast<LRFUReplData>(candidate->replacementData)->lastCRF*pow(0.5, 0.0001*float(curr_tick-std::static_pointer_cast<LRFUReplData>(candidate->replacementData)->lastTouchTick));
-
     	std::static_pointer_cast<LRFUReplData>(candidate->replacementData)->lastTouchTick = curr_tick;
-	// Update victim entry if necessary
+	// Update victim entry if CRF is smaller
         if (std::static_pointer_cast<LRFUReplData>(
                     candidate->replacementData)->lastCRF <
                 std::static_pointer_cast<LRFUReplData>(
